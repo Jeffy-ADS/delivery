@@ -46,81 +46,69 @@ def produto(request, id):
     })
 
 
-
 def add_carrinho(request):
-    # Inicializa o carrinho na sessão se não existir
     if not request.session.get('carrinho'):
         request.session['carrinho'] = []
         request.session.save()
 
     x = dict(request.POST)
+    def removeLixo():
+        adicionais = x.copy()
+        adicionais.pop('id')
+        adicionais.pop('csrfmiddlewaretoken')
+        adicionais.pop('observacoes')
+        adicionais.pop('quantidade')
+        adicionais = list(adicionais.items())
 
-    # Função para remover itens indesejados do dicionário
-    def removeLixo(adicionais):
-        adicionais = adicionais.copy()
-        for chave in ['id', 'csrfmiddlewaretoken', 'observacoes', 'quantidade']:
-            adicionais.pop(chave, None)
-        return list(adicionais.items())
-
-    adicionais = removeLixo(x)    
-
-    id = int(x.get('id', ['0'])[0])
-    produto = Produto.objects.filter(id=id).first()
-    if not produto:
-        return redirect(f'/produto/{id}?erro=produto_nao_encontrado')
-
-    preco_total = produto.preco
-    adicionais_verifica = Adicional.objects.filter(produto_id=id)
+        return adicionais
+        
+    adicionais = removeLixo()  
+    id = int(x['id'][0])
+    preco_total = Produto.objects.filter(id=id)[0].preco
+    adicionais_verifica =  Adicional.objects.filter(produto = id)
     aprovado = True
-
-    # Verifica se os adicionais atendem os critérios de mínimo e máximo
-    for adicional in adicionais_verifica:
+    for i in adicionais_verifica:
         encontrou = False
-        minimo = adicional.minimo
-        maximo = adicional.maximo
-        for nome, valores in adicionais:
-            if adicional.nome == nome:
+        minimo = i.minimo
+        maximo = i.maximo
+        for j in adicionais:
+            if i.nome == j[0]:
                 encontrou = True
-                if len(valores) < minimo or len(valores) > maximo:
+                if len(j[1]) < minimo or len(j[1]) > maximo:
                     aprovado = False
-        if minimo > 0 and not encontrou:
+        if minimo > 0 and encontrou == False:
             aprovado = False
-
+    
     if not aprovado:
         return redirect(f'/produto/{id}?erro=1')
-
-    # Otimização: Busca todas as opções de uma vez só
-    opcoes_ids = [int(k) for _, j in adicionais for k in j]
-    opcoes = {op.id: op.acrescimo for op in Opcoes.objects.filter(id__in=opcoes_ids)}
-
-    for _, j in adicionais:
+        
+    for i, j in adicionais:
         for k in j:
-            preco_total += opcoes.get(int(k), 0)
+            preco_total += Opcoes.objects.filter(id=int(k))[0].acrecimo
 
-    # Troca IDs por nomes
-    def troca_id_por_nome_adicional(adicionais):
-        opcoes_nomes = {op.id: op.nome for op in Opcoes.objects.filter(id__in=opcoes_ids)}
-        return [(i[0], [opcoes_nomes.get(int(j), "Desconhecido") for j in i[1]]) for i in adicionais]
-
+    def troca_id_por_nome_adicional(adicional):
+        adicionais_com_nome = []
+        for i in adicionais:
+            opcoes = []
+            for j in i[1]:
+                op = Opcoes.objects.filter(id = int(j))[0].nome
+                opcoes.append(op) 
+            adicionais_com_nome.append((i[0], opcoes))
+        return adicionais_com_nome
+    
     adicionais = troca_id_por_nome_adicional(adicionais)
 
-    # Calcula o preço total considerando a quantidade
-    preco_total *= int(x.get('quantidade', ['1'])[0])
+    preco_total *= int(x['quantidade'][0])
 
-    # Cria os dados do carrinho
-    data = {
-        'id_produto': id,
-        'observacoes': x.get('observacoes', [''])[0],
-        'preco': preco_total,
-        'adicionais': adicionais,
-        'quantidade': int(x.get('quantidade', ['1'])[0])
-    }
+    data = {'id_produto': int(x['id'][0]),
+            'observacoes': x['observacoes'][0],
+            'preco': preco_total,
+            'adicionais': adicionais,
+            'quantidade': x['quantidade'][0]}
 
-    # Adiciona ao carrinho e salva na sessão
     request.session['carrinho'].append(data)
     request.session.save()
-
-    return redirect('/ver_carrinho')
+    return redirect(f'/ver_carrinho')
 
 
 def ver_carrinho(request):
@@ -136,15 +124,14 @@ def ver_carrinho(request):
              'id': i['id_produto']
              }
         )
+
     total = sum([float(i['preco']) for i in request.session['carrinho']])
 
-    return render(request, 'carrinho.html', {
-        'dados': dados_motrar,
-        'total': total,
-        'carrinho': len(request.session['carrinho']),
-        'categorias': categorias,
-    
-    })
+    return render(request, 'carrinho.html', {'dados': dados_motrar,
+                                             'total': total,
+                                             'carrinho': len(request.session['carrinho']),
+                                             'categorias': categorias,
+                                             })
 
 def remover_carrinho(request, id):
     request.session['carrinho'].pop(id)
