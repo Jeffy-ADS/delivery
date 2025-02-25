@@ -7,6 +7,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('produto.urls')), # Vamos incluir este caminho para a urls do produto
     path('npedido/', include('pedido.urls')),
+    path('cadastroCliente/', include('cadastroCliente.urls')),
+    
 ]
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
